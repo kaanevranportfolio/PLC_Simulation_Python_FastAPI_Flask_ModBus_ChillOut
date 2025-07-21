@@ -1,0 +1,16 @@
+{
+  "name": "hvac-plc-frontend",
+  "version": "1.0.0",
+  "description": "HVAC PLC Simulation Frontend",
+  "main": "src/app.js",
+  "scripts": {
+    "start": "npx http-server src -p 3000",
+    "dev": "npx http-server src -p 3000 -c-1"
+  },
+  "keywords": ["hvac", "plc", "simulation", "control"],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "http-server": "^14.1.1"
+  }
+}

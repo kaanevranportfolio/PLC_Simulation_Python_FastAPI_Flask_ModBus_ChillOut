@@ -1,0 +1,76 @@
+version: '3.8'
+
+services:
+  # Frontend - React/Vue web interface
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"  # Expose for browser access
+    networks:
+      - hvac-network
+    depends_on:
+      - backend
+    environment:
+      - REACT_APP_API_URL=http://localhost:8000
+
+  # Backend API - FastAPI
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"  # Expose for frontend API calls
+    networks:
+      - hvac-network
+    depends_on:
+      - plc
+      - physical-model
+    environment:
+      - PLC_HOST=plc
+      - PLC_PORT=502
+      - PHYSICAL_MODEL_HOST=physical-model
+      - PHYSICAL_MODEL_URL=http://physical-model:8001
+
+  # PLC Simulator - Custom Python implementation
+  plc:
+    build:
+      context: ./plc
+      dockerfile: Dockerfile
+    networks:
+      - hvac-network
+    volumes:
+      - ./plc/programs:/app/plc_programs:ro  # Mount ST programs
+    depends_on:
+      - physical-model
+    environment:
+      - PHYSICAL_MODEL_HOST=physical-model
+      - PHYSICAL_MODEL_PORT=503
+    # No ports exposed - only internal communication
+
+  # Physical Model - Room simulation
+  physical-model:
+    build:
+      context: ./physical-model
+      dockerfile: Dockerfile
+    networks:
+      - hvac-network
+    environment:
+      - MODBUS_PORT=503
+      - API_PORT=8001
+    # Optionally expose REST API for testing/debugging
+    # ports:
+    #   - "8001:8001"  # Uncomment to test weather API directly
+
+networks:
+  hvac-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+# Optional: Add volumes for data persistence if needed
+# volumes:
+#   plc-data:
+#     driver: local

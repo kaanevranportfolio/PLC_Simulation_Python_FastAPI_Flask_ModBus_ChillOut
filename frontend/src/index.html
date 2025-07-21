@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HVAC Control System</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1><i class="fas fa-wind"></i> HVAC Control System</h1>
+            <div class="system-status">
+                <span id="connection-status" class="status-indicator">
+                    <i class="fas fa-circle"></i> Disconnected
+                </span>
+            </div>
+        </header>
+
+        <main>
+            <!-- Control Panel -->
+            <section class="control-panel">
+                <h2><i class="fas fa-sliders-h"></i> System Control</h2>
+                <div class="control-buttons">
+                    <button id="system-toggle" class="btn btn-primary">
+                        <i class="fas fa-power-off"></i> Start System
+                    </button>
+                </div>
+                
+                <div class="setpoints">
+                    <div class="setpoint-control">
+                        <label for="temp-setpoint">
+                            <i class="fas fa-thermometer-half"></i> Temperature Setpoint
+                        </label>
+                        <div class="slider-container">
+                            <input type="range" id="temp-setpoint" min="15" max="30" step="0.5" value="22">
+                            <span id="temp-setpoint-value">22.0°C</span>
+                        </div>
+                    </div>
+                    
+                    <div class="setpoint-control">
+                        <label for="humidity-setpoint">
+                            <i class="fas fa-tint"></i> Humidity Setpoint
+                        </label>
+                        <div class="slider-container">
+                            <input type="range" id="humidity-setpoint" min="30" max="70" step="1" value="50">
+                            <span id="humidity-setpoint-value">50%</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Room Visualization -->
+            <section class="room-visualization">
+                <h2><i class="fas fa-home"></i> Room Status</h2>
+                <div class="room-diagram">
+                    <svg viewBox="0 0 400 300" id="room-svg">
+                        <!-- Room walls -->
+                        <rect x="50" y="50" width="300" height="200" 
+                              fill="none" stroke="#333" stroke-width="4"/>
+                        
+                        <!-- Room interior -->
+                        <rect x="54" y="54" width="292" height="192" 
+                              fill="#f0f8ff" opacity="0.5"/>
+                        
+                        <!-- Temperature display -->
+                        <g id="indoor-temp-group">
+                            <circle cx="200" cy="120" r="30" fill="#ff6b6b" opacity="0.3"/>
+                            <text x="200" y="125" text-anchor="middle" class="sensor-text">
+                                <tspan id="indoor-temp">20.0°C</tspan>
+                            </text>
+                        </g>
+                        
+                        <!-- Humidity display -->
+                        <g id="indoor-humidity-group">
+                            <circle cx="200" cy="180" r="30" fill="#4ecdc4" opacity="0.3"/>
+                            <text x="200" y="185" text-anchor="middle" class="sensor-text">
+                                <tspan id="indoor-humidity">50%</tspan>
+                            </text>
+                        </g>
+                        
+                        <!-- Fan indicator -->
+                        <g id="fan-indicator" transform="translate(100, 150)">
+                            <circle cx="0" cy="0" r="20" fill="none" stroke="#666" stroke-width="2"/>
+                            <path d="M-15,-5 L0,0 L-15,5 Z" fill="#666" class="fan-blade"/>
+                            <path d="M15,-5 L0,0 L15,5 Z" fill="#666" class="fan-blade"/>
+                            <path d="M-5,-15 L0,0 L5,-15 Z" fill="#666" class="fan-blade"/>
+                            <path d="M-5,15 L0,0 L5,15 Z" fill="#666" class="fan-blade"/>
+                        </g>
+                        
+                        <!-- Chiller indicator -->
+                        <g id="chiller-indicator" transform="translate(300, 100)">
+                            <rect x="-15" y="-15" width="30" height="30" rx="5" 
+                                  fill="#2196F3" opacity="0.3" stroke="#2196F3" stroke-width="2"/>
+                            <text x="0" y="5" text-anchor="middle" class="icon-text">❄</text>
+                        </g>
+                        
+                        <!-- Outside conditions -->
+                        <text x="200" y="30" text-anchor="middle" class="label-text">Outside</text>
+                        <text x="200" y="270" text-anchor="middle" class="label-text">Inside</text>
+                        
+                        <g id="outdoor-conditions">
+                            <text x="50" y="30" class="outdoor-text">
+                                <tspan id="outdoor-temp">25.0°C</tspan> / <tspan id="outdoor-humidity">60%</tspan>
+                            </text>
+                        </g>
+                    </svg>
+                </div>
+                
+                <div class="actuator-status">
+                    <div class="status-item">
+                        <i class="fas fa-fan"></i>
+                        <span>Fan Speed: <strong id="fan-speed">0%</strong></span>
+                    </div>
+                    <div class="status-item">
+                        <i class="fas fa-snowflake"></i>
+                        <span>Chiller: <strong id="chiller-status">OFF</strong></span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Weather Control -->
+            <section class="weather-control">
+                <h2><i class="fas fa-cloud-sun"></i> Weather Simulation</h2>
+                <div class="weather-inputs">
+                    <div class="weather-item">
+                        <label for="weather-temp">
+                            <i class="fas fa-thermometer"></i> Outside Temperature
+                        </label>
+                        <div class="input-group">
+                            <input type="number" id="weather-temp" min="-10" max="45" step="0.5" value="25">
+                            <span class="unit">°C</span>
+                        </div>
+                    </div>
+                    
+                    <div class="weather-item">
+                        <label for="weather-humidity">
+                            <i class="fas fa-water"></i> Outside Humidity
+                        </label>
+                        <div class="input-group">
+                            <input type="number" id="weather-humidity" min="0" max="100" step="1" value="60">
+                            <span class="unit">%</span>
+                        </div>
+                    </div>
+                    
+                    <button id="update-weather" class="btn btn-secondary">
+                        <i class="fas fa-sync"></i> Update Weather
+                    </button>
+                </div>
+            </section>
+
+            <!-- System Logs -->
+            <section class="system-logs">
+                <h2><i class="fas fa-list"></i> System Activity</h2>
+                <div id="log-container" class="log-container">
+                    <!-- Logs will be added here dynamically -->
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <p>HVAC PLC Simulation System &copy; 2024</p>
+        </footer>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
