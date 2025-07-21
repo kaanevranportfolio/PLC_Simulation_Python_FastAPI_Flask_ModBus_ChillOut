@@ -200,18 +200,24 @@ function updateConnectionStatus(connected) {
 
 // Visual Updates
 function updateFanAnimation(speed) {
-    const fanBlades = elements.fanIndicator.querySelectorAll('.fan-blade');
+    const fanGroup = elements.fanIndicator;
+
     if (speed > 0) {
-        const duration = 3 - (speed / 100) * 2.5; // Faster rotation for higher speeds
-        elements.fanIndicator.style.animation = `rotate ${duration}s linear infinite`;
-        fanBlades.forEach(blade => {
-            blade.style.fill = '#4CAF50';
-        });
+        // Calculate the duration
+        const duration = 3 - (speed / 100) * 2.5;
+
+        // Set the CSS variable on the fan group element
+        fanGroup.style.setProperty('--rotation-duration', duration + 's');
+        
+        // Add the class to start the animation and turn blades green
+        fanGroup.classList.add('is-rotating');
+
     } else {
-        elements.fanIndicator.style.animation = 'none';
-        fanBlades.forEach(blade => {
-            blade.style.fill = '#666';
-        });
+        // Remove the class to stop the animation
+        fanGroup.classList.remove('is-rotating');
+        
+        // The CSS will automatically handle changing the blade color back to #666
+        // because the condition `#fan-indicator.is-rotating .fan-blade` is no longer met.
     }
 }
 
