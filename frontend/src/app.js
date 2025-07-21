@@ -233,9 +233,27 @@ function updateChillerIndicator(isOn) {
 }
 
 function updateRoomTemperatureColor(temperature) {
-    const roomRect = document.querySelector('#room-svg rect:nth-child(2)');
-    const hue = 200 - ((temperature - 15) / 15) * 60; // Blue to red gradient
-    roomRect.style.fill = `hsl(${hue}, 70%, 85%)`;
+    // --- DEBUG STEP 1: Log the input value ---
+    // This tells us if the function is being called and with what value.
+    console.log(`Attempting to update color for temperature:`, temperature);
+
+    // --- DEBUG STEP 2: Find the element and verify it exists ---
+    const roomRect = document.querySelector('#house-interior');
+    
+    // This is the most critical check. Does the element actually exist?
+    if (!roomRect) {
+        console.error("DEBUGGER: FAILED to find element with ID #house-interior. Check for typos in your HTML or if the script is running too early.");
+        return; // Stop the function if the element isn't found
+    }
+    console.log("DEBUGGER: Successfully found element:", roomRect);
+
+    // --- DEBUG STEP 3: Calculate the color ---
+    const hue = 240 - (((temperature - 15) / 15) * 240); // Better range from blue (240) to red (0)
+    
+    // --- DEBUG STEP 4: Apply the color ---
+    const newColor = `hsl(${hue}, 80%, 75%)`;
+    console.log(`DEBUGGER: Applying new color:`, newColor);
+    roomRect.style.fill = newColor;
 }
 
 // Logging Functions

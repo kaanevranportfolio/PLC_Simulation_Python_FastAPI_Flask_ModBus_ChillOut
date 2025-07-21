@@ -356,7 +356,7 @@ footer {
 }
 
 #fan-indicator {
-  transform-origin: center; /* Or 0 0, both work here */
+  transform-origin: 0 0; /* Or 0 0, both work here */
   /* The blades will be green WHEN the group is rotating */
   &.is-rotating .fan-blade {
     fill: #4CAF50;

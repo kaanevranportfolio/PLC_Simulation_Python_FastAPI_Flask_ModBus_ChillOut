@@ -55,60 +55,59 @@
             <section class="room-visualization">
                 <h2><i class="fas fa-home"></i> Room Status</h2>
                 <div class="room-diagram">
-                    <svg viewBox="0 0 400 300" id="room-svg">
-                        <!-- Room walls -->
-                        <rect x="50" y="50" width="300" height="200" 
-                              fill="none" stroke="#333" stroke-width="4"/>
-                        
-                        <!-- Room interior -->
-                        <rect x="54" y="54" width="292" height="192" 
-                              fill="#f0f8ff" opacity="0.5"/>
-                        
-                        <!-- Temperature display -->
-                        <g id="indoor-temp-group">
-                            <circle cx="200" cy="120" r="30" fill="#ff6b6b" opacity="0.3"/>
-                            <text x="200" y="125" text-anchor="middle" class="sensor-text">
-                                <tspan id="indoor-temp">20.0°C</tspan>
-                            </text>
-                        </g>
-                        
-                        <!-- Humidity display -->
-                        <g id="indoor-humidity-group">
-                            <circle cx="200" cy="180" r="30" fill="#4ecdc4" opacity="0.3"/>
-                            <text x="200" y="185" text-anchor="middle" class="sensor-text">
-                                <tspan id="indoor-humidity">50%</tspan>
-                            </text>
-                        </g>
-                        
-                        <!-- Fan indicator -->
-                          <g transform="translate(100, 150)">
-                                 <g id="fan-indicator">
-                                    <circle cx="0" cy="0" r="20" fill="none" stroke="#666" stroke-width="2"/>
-                                    <path d="M-15,-5 L0,0 L-15,5 Z" fill="#666" class="fan-blade"/>
-                                    <path d="M15,-5 L0,0 L15,5 Z" fill="#666" class="fan-blade"/>
-                                    <path d="M-5,-15 L0,0 L5,-15 Z" fill="#666" class="fan-blade"/>
-                                    <path d="M-5,15 L0,0 L5,15 Z" fill="#666" class="fan-blade"/>
-                               </g>
-                          </g>
-                       
-                        
-                        <!-- Chiller indicator -->
-                        <g id="chiller-indicator" transform="translate(300, 100)">
-                            <rect x="-15" y="-15" width="30" height="30" rx="5" 
-                                  fill="#2196F3" opacity="0.3" stroke="#2196F3" stroke-width="2"/>
-                            <text x="0" y="5" text-anchor="middle" class="icon-text">❄</text>
-                        </g>
-                        
-                        <!-- Outside conditions -->
-                        <text x="200" y="30" text-anchor="middle" class="label-text">Outside</text>
-                        <text x="200" y="270" text-anchor="middle" class="label-text">Inside</text>
-                        
-                        <g id="outdoor-conditions">
-                            <text x="50" y="30" class="outdoor-text">
-                                <tspan id="outdoor-temp">25.0°C</tspan> / <tspan id="outdoor-humidity">60%</tspan>
-                            </text>
-                        </g>
-                    </svg>
+           <svg viewBox="0 0 400 300" id="room-svg">
+    <!-- House Shape Border -->
+    <path d="M50 250 L 50 110 L 200 40 L 350 110 L 350 250 Z" 
+          fill="none" stroke="#333" stroke-width="4"/>
+    
+    <!-- House Shape Interior (THIS IS THE CORRECTED LINE) -->
+    <path id="house-interior" d="M54 246 L 54 112 L 200 46 L 346 112 L 346 246 Z" 
+          fill="#e0f2f1" opacity="0.7"/>
+    
+    <!-- Temperature display -->
+    <g id="indoor-temp-group">
+        <circle cx="200" cy="140" r="30" fill="#ff6b6b" opacity="0.3"/>
+        <text x="200" y="145" text-anchor="middle" class="sensor-text">
+            <tspan id="indoor-temp">20.0°C</tspan>
+        </text>
+    </g>
+    
+    <!-- Humidity display -->
+    <g id="indoor-humidity-group">
+        <circle cx="200" cy="200" r="30" fill="#4ecdc4" opacity="0.3"/>
+        <text x="200" y="205" text-anchor="middle" class="sensor-text">
+            <tspan id="indoor-humidity">50%</tspan>
+        </text>
+    </g>
+    
+    <!-- Fan indicator -->
+      <g transform="translate(100, 175)">
+             <g id="fan-indicator">
+                <circle cx="0" cy="0" r="20" fill="none" stroke="#666" stroke-width="2"/>
+                <path d="M-15,-5 L0,0 L-15,5 Z" fill="#666" class="fan-blade"/>
+                <path d="M15,-5 L0,0 L15,5 Z" fill="#666" class="fan-blade"/>
+                <path d="M-5,-15 L0,0 L5,-15 Z" fill="#666" class="fan-blade"/>
+                <path d="M-5,15 L0,0 L5,15 Z" fill="#666" class="fan-blade"/>
+           </g>
+      </g>
+   
+    <!-- Chiller indicator -->
+    <g id="chiller-indicator" transform="translate(300, 120)">
+        <rect x="-15" y="-15" width="30" height="30" rx="5" 
+              fill="#2196F3" opacity="0.3" stroke="#2196F3" stroke-width="2"/>
+        <text x="0" y="5" text-anchor="middle" class="icon-text">❄</text>
+    </g>
+    
+    <!-- Outside conditions -->
+    <g id="outdoor-conditions">
+         <text x="50" y="30" class="outdoor-text">
+            <tspan id="outdoor-temp">25.0°C</tspan> / <tspan id="outdoor-humidity">60%</tspan>
+        </text>
+    </g>
+    <text x="350" y="30" text-anchor="end" class="label-text">Outside</text>
+    <text x="200" y="270" text-anchor="middle" class="label-text">Inside</text>
+    
+</svg>
                 </div>
                 
                 <div class="actuator-status">
@@ -167,6 +166,6 @@
         </footer>
     </div>
 
-    <script src="app.js"></script>
+    <script src="app.js" defer></script>
 </body>
 </html>
