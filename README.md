@@ -1,7 +1,6 @@
 
 
-## System in Action
-[Click the image below to watch the video demonstration.]
+## System in Action (Click the Image)
 [![Watch the video](pngs/screen.png)](https://www.youtube.com/watch?v=5jvwHJAcYsU&ab_channel=No_Name)
 
 # HVAC PLC Simulation
