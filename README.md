@@ -151,8 +151,5 @@ docker-compose down
 - Use Dockerfiles for isolated environments.
 - Modify source files as needed and rebuild containers.
 
-## License
-Specify your license here.
 
-## Authors
-List authors and contributors here.
+
