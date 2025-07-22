@@ -1,3 +1,7 @@
+
+## System in Action
+[![Watch the video](pngs/screen.png)](https://www.youtube.com/watch?v=5jvwHJAcYsU&ab_channel=No_Name)
+
 # HVAC PLC Simulation
 
 This project simulates a Heating, Ventilation, and Air Conditioning (HVAC) control system using a PLC (Programmable Logic Controller) architecture. It consists of three main components: backend, frontend, and a physical model, all orchestrated via Docker Compose for easy deployment and management.

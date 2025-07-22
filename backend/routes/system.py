@@ -34,6 +34,7 @@ async def control_system(
                 raise ValueError("Temperature value required")
             system_state["setpoint_temperature"] = command.value
             await modbus_client.write_register(settings.REG_SETPOINT_TEMP, int(command.value * 10))
+            logger.info("Temperature setpoint updated")
             return {"status": "success", "message": f"Temperature setpoint: {command.value}°C"}
             
         elif command.command == "set_humidity":

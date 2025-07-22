@@ -98,6 +98,7 @@ async function updateSetpoint(type, value) {
         if (response.ok) {
             const data = await response.json();
             addLog(data.message, 'info');
+            console.log('Response received from backend:', response); 
         } else {
             throw new Error(`Failed to update ${type} setpoint`);
         }

@@ -29,7 +29,7 @@ class ThermalModel:
         # HVAC properties
         self.fan_speed = 0  # 0-100%
         self.chiller_on = False
-        self.chiller_capacity = 8000  # W (2kW cooling capacity)
+        self.chiller_capacity = 20000  # W ( cooling capacity)
         self.max_air_flow = 0.1  # m³/s at 100% fan speed
         
         # Humidity model parameters

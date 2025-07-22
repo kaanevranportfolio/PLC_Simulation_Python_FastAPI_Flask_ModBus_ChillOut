@@ -4,6 +4,8 @@ from pymodbus.exceptions import ModbusException
 import logging
 from typing import Dict, Any, Optional, List
 
+logging.basicConfig(level=logging.DEBUG)
+
 logger = logging.getLogger(__name__)
 
 class ModbusClient:

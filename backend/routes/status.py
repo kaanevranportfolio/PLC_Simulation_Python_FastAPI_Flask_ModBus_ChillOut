@@ -48,15 +48,18 @@ async def get_status(
                 )
                 if response.status_code == 200:
                     pm_status = response.json()
-                    logger.info(f"Received /api/status from physical-model: {pm_status}")
+                    #logger.info(f"Received /api/status from physical-model: {pm_status}")
                     status_data["outside_temperature"] = pm_status.get("outside_temperature", 25.0)
                     status_data["outside_humidity"] = pm_status.get("outside_humidity", 60.0)
+                    '''
                     # Fallback for room values if PLC values are missing or zero
                     if (not status_data["room_temperature"] or status_data["room_temperature"] == 0.0):
                         status_data["room_temperature"] = pm_status.get("room_temperature", 20.0)
                     if (not status_data["room_humidity"] or status_data["room_humidity"] == 0.0):
                         status_data["room_humidity"] = pm_status.get("room_humidity", 50.0)
+                    '''
         except Exception as e:
+        
             logger.warning(f"Physical model unavailable: {e}")
         
         final_status = SystemStatus(
@@ -66,7 +69,7 @@ async def get_status(
             setpoint_temperature=system_state["setpoint_temperature"],
             setpoint_humidity=system_state["setpoint_humidity"]
         )
-        logger.info(f"Sending status to frontend: {final_status}")
+        #logger.info(f"Sending status to frontend: {final_status}")
         return final_status
     except Exception as e:
         logger.error(f"Error getting status: {e}")

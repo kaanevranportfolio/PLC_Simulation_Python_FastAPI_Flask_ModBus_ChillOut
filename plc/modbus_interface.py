@@ -180,7 +180,25 @@ class ModbusInterface:
             self.plc_runtime.memory.inputs['SystemEnable'] = bool(system_enable)
             logger.debug(f"Read SystemEnable: {system_enable}")
             
-            # ... rest of the reads ...
+            # Temperature Setpoint
+            setpoint_temp = context.getValues(3, self.register_map['SetpointTemp'] - 40001, 1)[0]
+            self.plc_runtime.memory.inputs['SetpointTemp'] = setpoint_temp / 10.0  # Convert from x10
+            logger.debug(f"Read SetpointTemp: {setpoint_temp / 10.0}°C")
+            
+            # Humidity Setpoint
+            setpoint_humidity = context.getValues(3, self.register_map['SetpointHumidity'] - 40001, 1)[0]
+            self.plc_runtime.memory.inputs['SetpointHumidity'] = setpoint_humidity / 10.0
+            logger.debug(f"Read SetpointHumidity: {setpoint_humidity / 10.0}%")
+            
+            # Temperature Deadband
+            temp_deadband = context.getValues(3, self.register_map['TempDeadband'] - 40001, 1)[0]
+            self.plc_runtime.memory.inputs['TempDeadband'] = temp_deadband / 10.0
+            logger.debug(f"Read TempDeadband: {temp_deadband / 10.0}°C")
+            
+            # Humidity Deadband
+            humidity_deadband = context.getValues(3, self.register_map['HumidityDeadband'] - 40001, 1)[0]
+            self.plc_runtime.memory.inputs['HumidityDeadband'] = humidity_deadband / 10.0
+            logger.debug(f"Read HumidityDeadband: {humidity_deadband / 10.0}%")
             
             # Update status registers for backend
             fan_speed = int(self.plc_runtime.memory.outputs.get('FanSpeed', 0))
