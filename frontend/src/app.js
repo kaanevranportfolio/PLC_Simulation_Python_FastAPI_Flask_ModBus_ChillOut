@@ -233,26 +233,42 @@ function updateChillerIndicator(isOn) {
 }
 
 function updateRoomTemperatureColor(temperature) {
-    // --- DEBUG STEP 1: Log the input value ---
-    // This tells us if the function is being called and with what value.
-    console.log(`Attempting to update color for temperature:`, temperature);
-
-    // --- DEBUG STEP 2: Find the element and verify it exists ---
     const roomRect = document.querySelector('#house-interior');
-    
-    // This is the most critical check. Does the element actually exist?
     if (!roomRect) {
-        console.error("DEBUGGER: FAILED to find element with ID #house-interior. Check for typos in your HTML or if the script is running too early.");
-        return; // Stop the function if the element isn't found
+        console.error("Could not find element with ID #house-interior");
+        return;
     }
-    console.log("DEBUGGER: Successfully found element:", roomRect);
 
-    // --- DEBUG STEP 3: Calculate the color ---
-    const hue = 240 - (((temperature - 15) / 15) * 240); // Better range from blue (240) to red (0)
+    const tempValue = parseFloat(temperature);
+    if (isNaN(tempValue)) {
+        return;
+    }
+
+    // --- COLOR & TEMPERATURE DEFINITIONS ---
+    const coldColor = { r: 214, g: 234, b: 248  };  //  
+    const hotColor = { r: 255, g: 243, b: 51 };   // 
     
-    // --- DEBUG STEP 4: Apply the color ---
-    const newColor = `hsl(${hue}, 80%, 75%)`;
-    console.log(`DEBUGGER: Applying new color:`, newColor);
+    // THIS IS THE ONLY LINE THAT HAS CHANGED
+    const gradientStartTemp = 22.0; 
+    
+    const gradientEndTemp = 35.0;
+
+    // --- INTERPOLATION LOGIC ---
+
+    // 1. Calculate the progress 'factor' (0.0 to 1.0) along the temperature range.
+    const tempRange = gradientEndTemp - gradientStartTemp;
+    let factor = (tempValue - gradientStartTemp) / tempRange;
+    
+    // 2. Clamp the factor between 0 and 1 to keep colors within the blue/orange range.
+    factor = Math.max(0, Math.min(1, factor));
+
+    // 3. Linearly interpolate each color component.
+    const r = Math.round(coldColor.r + (hotColor.r - coldColor.r) * factor);
+    const g = Math.round(coldColor.g + (hotColor.g - coldColor.g) * factor);
+    const b = Math.round(coldColor.b + (hotColor.b - coldColor.b) * factor);
+
+    // 4. Create the final RGB color string and apply it.
+    const newColor = `rgb(${r}, ${g}, ${b})`;
     roomRect.style.fill = newColor;
 }
 
