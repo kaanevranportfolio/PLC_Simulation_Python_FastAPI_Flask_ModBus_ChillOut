@@ -3,43 +3,28 @@
 ## System in Action (Click the Image)
 [![Watch the video](pngs/screen.png)](https://www.youtube.com/watch?v=5jvwHJAcYsU&ab_channel=No_Name)
 
+
 ## System Connections Diagram
 
 ### Connection Analysis
 
-- **Frontend** communicates with **Backend** via HTTP REST API (Nginx, port 8080 to FastAPI, port 8000).
-- **Backend** exposes API endpoints and acts as Modbus master/client (port 502).
+- **Frontend** communicates with:
+  - **Backend** via HTTP REST API (Nginx, port 8080 to FastAPI, port 8000).
+  - **Physical Model** via HTTP REST API (Flask, port 8001) for weather updates.
+- **Backend** acts as Modbus master/client (port 502) and HTTP server (port 8000).
 - **PLC** acts as Modbus slave/server (port 502).
-- **Physical Model** acts as Modbus master/client (port 502), simulating environment changes.
+- **Physical Model**:
+  - Acts as Modbus slave/server (port 503).
+  - Runs a Flask HTTP server (port 8001) for weather and status updates.
 
-### Diagram
 
-```
-  +----------------+        HTTP (port 8080)        +----------------+
-  |   Frontend     |------------------------------->|    Backend     |
-  | (Nginx, SPA)   |                               | (FastAPI, API) |
-  +----------------+                               +----------------+
-                                                        |
-                                                        | Modbus TCP (port 502, Master)
-                                                        v
-                                                 +----------------+
-                                                 |      PLC       |
-                                                 | (Modbus Slave) |
-                                                 +----------------+
-                                                        ^
-                                                        | Modbus TCP (port 502, Master)
-                                                        |
-  +---------------------+                               |
-  |  Physical Model     |-------------------------------+
-  | (Master/Client)     |
-  +---------------------+
-```
+![System Connections](pngs/connections.png)
 
 **Roles and Ports:**
-- Frontend: HTTP client, port 8080 (Nginx)
-- Backend: HTTP server (port 8000), Modbus master/client (port 502)
-- PLC: Modbus slave/server (port 502)
-- Physical Model: Modbus master/client (port 502)
+1. **Frontend:** Nginx server & JavaScript app (port 3000), HTTP client to Backend
+2. **Backend:** FastAPI server (port 8000), Modbus slave to PLC, HTTP client to Physical Model
+3. **PLC:** Modbus master at port 502, Modbus slave to Physical Model
+4. **Physical Model:** Flask server (port 8001), Modbus master at port 503
 
 # HVAC PLC Simulation
 
