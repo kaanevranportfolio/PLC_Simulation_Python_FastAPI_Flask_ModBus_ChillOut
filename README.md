@@ -6,7 +6,7 @@
 
 ## System Connections Diagram
 
-![System Connections](pngs/connections.png)
+![System Connections](pngs/connections_resized.png)
 
 **Roles and Ports:**
 1. **Frontend:** Nginx server & JavaScript app (port 3000), HTTP client to Backend
