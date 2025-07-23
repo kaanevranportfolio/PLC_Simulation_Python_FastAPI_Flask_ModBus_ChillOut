@@ -6,18 +6,6 @@
 
 ## System Connections Diagram
 
-### Connection Analysis
-
-- **Frontend** communicates with:
-  - **Backend** via HTTP REST API (Nginx, port 8080 to FastAPI, port 8000).
-  - **Physical Model** via HTTP REST API (Flask, port 8001) for weather updates.
-- **Backend** acts as Modbus master/client (port 502) and HTTP server (port 8000).
-- **PLC** acts as Modbus slave/server (port 502).
-- **Physical Model**:
-  - Acts as Modbus slave/server (port 503).
-  - Runs a Flask HTTP server (port 8001) for weather and status updates.
-
-
 ![System Connections](pngs/connections.png)
 
 **Roles and Ports:**
