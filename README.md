@@ -124,7 +124,7 @@ pngs/
    ```bash
    docker-compose up --build
    ```
-3. Access the frontend at [http://localhost:8080](http://localhost:8080).
+3. Access the frontend at [http://localhost:3000](http://localhost:3000).
 
 ### Stopping the Project
 ```bash
