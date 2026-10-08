@@ -6,7 +6,7 @@ modbus_client: ModbusClient = None
 system_state = {
     "plc_running": False,
     "setpoint_temperature": 22.0,
-    "setpoint_humidity": 50.0,
+    "setpoint_humidity": 45.0,
 }
 
 def get_modbus_client() -> ModbusClient:

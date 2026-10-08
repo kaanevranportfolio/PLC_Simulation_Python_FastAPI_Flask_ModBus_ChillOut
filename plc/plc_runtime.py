@@ -81,7 +81,8 @@ class PLCRuntime:
             'SetpointTemp': 22.0,
             'SetpointHumidity': 45.0,
             'TempDeadband': 1.0,
-            'HumidityDeadband': 5.0
+            'HumidityDeadband': 5.0,
+            'SensorFault': True  # no plant data yet; set by the Modbus interface every scan
         }
         
         # Outputs
@@ -97,7 +98,8 @@ class PLCRuntime:
             'TempError': 0.0,
             'HumidityError': 0.0,
             'CoolingRequired': False,
-            'DehumidRequired': False
+            'DehumidRequired': False,
+            'ChillerTimer': 1000  # scans since the chiller last changed state; starts "long ago"
         }
         
         logger.info("Initialized default HVAC memory")
@@ -248,46 +250,78 @@ class PLCRuntime:
         # For now, just log it
         logger.debug(f"Function call: {statement['name']}")
     
+    # Chiller anti-short-cycle timing in scans (100 ms scan -> 100 scans = 10 s); same values as hvac_control.st
+    MIN_ON_SCANS = 100
+    MIN_OFF_SCANS = 100
+
     def _execute_default_logic(self):
-        """Execute default HVAC control logic"""
+        """Fallback used when no ST program is loaded. Mirrors hvac_control.st decision for decision
+        (tests/test_st_program.py runs both side by side)."""
+        inp, out, st = self.memory.inputs, self.memory.outputs, self.memory.internal
+
+        if st['ChillerTimer'] < 100000:
+            st['ChillerTimer'] += 1
+
+        if inp.get('SensorFault', True):
+            # Fail-safe: no trustworthy sensor data - everything off and alarm raised
+            if out['ChillerOn']:
+                st['ChillerTimer'] = 0
+            out['FanSpeed'] = 0
+            out['ChillerOn'] = False
+            out['SystemStatus'] = 0
+            out['AlarmActive'] = True
+            st['CoolingRequired'] = False
+            st['DehumidRequired'] = False
+            return
+
         if not self.system_enabled:
             # System off - reset outputs
-            self.memory.outputs['FanSpeed'] = 0
-            self.memory.outputs['ChillerOn'] = False
-            self.memory.outputs['SystemStatus'] = 0
+            if out['ChillerOn']:
+                st['ChillerTimer'] = 0
+            out['FanSpeed'] = 0
+            out['ChillerOn'] = False
+            out['SystemStatus'] = 0
+            out['AlarmActive'] = False
+            st['CoolingRequired'] = False
+            st['DehumidRequired'] = False
             return
-        
-        # Calculate errors
-        temp_error = self.memory.inputs['RoomTemperature'] - self.memory.inputs['SetpointTemp']
-        humidity_error = self.memory.inputs['RoomHumidity'] - self.memory.inputs['SetpointHumidity']
-        
-        self.memory.internal['TempError'] = temp_error
-        self.memory.internal['HumidityError'] = humidity_error
-        
-        # Determine cooling requirement
-        cooling_required = temp_error > self.memory.inputs['TempDeadband']
-        dehumid_required = humidity_error > self.memory.inputs['HumidityDeadband']
-        
-        self.memory.internal['CoolingRequired'] = cooling_required
-        self.memory.internal['DehumidRequired'] = dehumid_required
-        
-        # Control logic
-        if cooling_required or dehumid_required:
-            self.memory.outputs['ChillerOn'] = True
-            self.memory.outputs['SystemStatus'] = 1  # Cooling
-            
-            # Fan speed based on error magnitude
-            if cooling_required:
-                fan_speed = min(100, max(30, int(temp_error * 20)))
+
+        temp_error = inp['RoomTemperature'] - inp['SetpointTemp']
+        humidity_error = inp['RoomHumidity'] - inp['SetpointHumidity']
+        st['TempError'] = temp_error
+        st['HumidityError'] = humidity_error
+
+        # Hysteresis band: start above +deadband, stop below -deadband, keep previous demand in between
+        if temp_error > inp['TempDeadband']:
+            st['CoolingRequired'] = True
+        elif temp_error < -inp['TempDeadband']:
+            st['CoolingRequired'] = False
+        if humidity_error > inp['HumidityDeadband']:
+            st['DehumidRequired'] = True
+        elif humidity_error < -inp['HumidityDeadband']:
+            st['DehumidRequired'] = False
+
+        wanted = st['CoolingRequired'] or st['DehumidRequired']
+        if wanted and not out['ChillerOn'] and st['ChillerTimer'] >= self.MIN_OFF_SCANS:
+            out['ChillerOn'] = True
+            st['ChillerTimer'] = 0
+        elif not wanted and out['ChillerOn'] and st['ChillerTimer'] >= self.MIN_ON_SCANS:
+            out['ChillerOn'] = False
+            st['ChillerTimer'] = 0
+
+        if out['ChillerOn']:
+            out['SystemStatus'] = 1
+            if st['CoolingRequired']:
+                out['FanSpeed'] = min(100, max(30, int(30 + temp_error * 20)))  # same law as hvac_control.st
             else:
-                fan_speed = 50  # Medium speed for dehumidification
-            
-            self.memory.outputs['FanSpeed'] = fan_speed
+                out['FanSpeed'] = 50
         else:
-            self.memory.outputs['ChillerOn'] = False
-            self.memory.outputs['FanSpeed'] = 20  # Low circulation
-            self.memory.outputs['SystemStatus'] = 2  # Idle
-    
+            out['SystemStatus'] = 2
+            out['FanSpeed'] = 20
+
+        t, h = inp['RoomTemperature'], inp['RoomHumidity']
+        out['AlarmActive'] = bool(t > 35.0 or t < 10.0 or h > 80.0 or h < 20.0)
+
     def get_diagnostics(self) -> Dict[str, Any]:
         """Get runtime diagnostics"""
         return {

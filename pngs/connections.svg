@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="860" viewBox="0 0 1100 860" font-family="Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="ar" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L12,6 L0,12 z" fill="#1f2937"/></marker>
+    <marker id="arD" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L12,6 L0,12 z" fill="#b45309"/></marker>
+  </defs>
+  <rect width="1100" height="860" fill="#ffffff"/>
+  <text x="550" y="38" text-anchor="middle" font-size="24" font-weight="700" fill="#111827">HVAC PLC Simulation: connections and Modbus roles</text>
+  <text x="550" y="62" text-anchor="middle" font-size="14" fill="#4b5563">Arrows point from the client (initiates) to the server (listens)</text>
+
+  <!-- Frontend -->
+  <rect x="340" y="90" width="420" height="90" rx="10" fill="#dbeafe" stroke="#1d4ed8" stroke-width="2"/>
+  <text x="550" y="122" text-anchor="middle" font-size="18" font-weight="700" fill="#1e3a8a">Frontend (browser JS)</text>
+  <text x="550" y="146" text-anchor="middle" font-size="14" fill="#1e3a8a">HTTP client · static files served by Nginx on :3000 (host)</text>
+  <text x="550" y="166" text-anchor="middle" font-size="13" fill="#1e3a8a">calls backend at localhost:8000</text>
+
+  <!-- Backend -->
+  <rect x="340" y="290" width="420" height="110" rx="10" fill="#fee2e2" stroke="#b91c1c" stroke-width="2"/>
+  <text x="550" y="322" text-anchor="middle" font-size="18" font-weight="700" fill="#7f1d1d">Backend (FastAPI)</text>
+  <text x="550" y="346" text-anchor="middle" font-size="14" fill="#7f1d1d">HTTP server :8000</text>
+  <text x="550" y="366" text-anchor="middle" font-size="14" fill="#7f1d1d">Modbus TCP client (to PLC) · HTTP client (to physical model)</text>
+
+  <!-- PLC -->
+  <rect x="30" y="540" width="380" height="120" rx="10" fill="#dcfce7" stroke="#15803d" stroke-width="2"/>
+  <text x="220" y="572" text-anchor="middle" font-size="18" font-weight="700" fill="#14532d">PLC (Python, ST interpreter)</text>
+  <text x="220" y="598" text-anchor="middle" font-size="14" fill="#14532d">Modbus TCP server :502 (for backend)</text>
+  <text x="220" y="620" text-anchor="middle" font-size="14" fill="#14532d">Modbus TCP client (to physical model)</text>
+  <text x="220" y="642" text-anchor="middle" font-size="13" fill="#14532d">scan cycle 100 ms</text>
+
+  <!-- Physical model -->
+  <rect x="690" y="540" width="380" height="120" rx="10" fill="#fef9c3" stroke="#a16207" stroke-width="2"/>
+  <text x="880" y="572" text-anchor="middle" font-size="18" font-weight="700" fill="#713f12">Physical model (Python)</text>
+  <text x="880" y="598" text-anchor="middle" font-size="14" fill="#713f12">Modbus TCP server :503 (for PLC)</text>
+  <text x="880" y="620" text-anchor="middle" font-size="14" fill="#713f12">Flask HTTP server :8001 (weather, status)</text>
+  <text x="880" y="642" text-anchor="middle" font-size="13" fill="#713f12">thermal model, 1.0 s step</text>
+
+  <!-- A1 control HTTP -->
+  <line x1="490" y1="180" x2="490" y2="288" stroke="#1f2937" stroke-width="3" marker-end="url(#ar)"/>
+  <text x="478" y="228" text-anchor="end" font-size="13" font-weight="700" fill="#111827">A1  HTTP</text>
+  <text x="478" y="246" text-anchor="end" font-size="12" fill="#374151">POST /api/control</text>
+  <text x="478" y="262" text-anchor="end" font-size="12" fill="#374151">GET /api/status (2 s)</text>
+
+  <!-- B1 weather HTTP (dashed) -->
+  <line x1="620" y1="180" x2="620" y2="288" stroke="#b45309" stroke-width="3" stroke-dasharray="9 6" marker-end="url(#arD)"/>
+  <text x="632" y="228" font-size="13" font-weight="700" fill="#92400e">B1  HTTP</text>
+  <text x="632" y="246" font-size="12" fill="#92400e">POST /api/weather</text>
+
+  <!-- A2 backend -> PLC Modbus -->
+  <path d="M 420 400 L 420 470 L 220 470 L 220 538" fill="none" stroke="#1f2937" stroke-width="3" marker-end="url(#ar)"/>
+  <text x="40" y="436" font-size="13" font-weight="700" fill="#111827">A2  Modbus TCP</text>
+  <text x="40" y="454" font-size="12" fill="#374151">client: backend → server: plc:502</text>
+  <text x="40" y="496" font-size="12" fill="#374151">write 40001–40005 (commands)</text>
+  <text x="40" y="514" font-size="12" fill="#374151">read 40101–40106 (status)</text>
+
+  <!-- B2/B3 backend -> physical model HTTP (dashed) -->
+  <path d="M 680 400 L 680 470 L 880 470 L 880 538" fill="none" stroke="#b45309" stroke-width="3" stroke-dasharray="9 6" marker-end="url(#arD)"/>
+  <text x="1070" y="436" text-anchor="end" font-size="13" font-weight="700" fill="#92400e">B2 / B3  HTTP</text>
+  <text x="1070" y="454" text-anchor="end" font-size="12" fill="#92400e">client: backend → server: physical-model:8001</text>
+  <text x="1070" y="496" text-anchor="end" font-size="12" fill="#92400e">POST /api/weather</text>
+  <text x="1070" y="514" text-anchor="end" font-size="12" fill="#92400e">GET /api/status · GET /health</text>
+
+  <!-- A3 PLC -> physical model Modbus -->
+  <line x1="410" y1="600" x2="688" y2="600" stroke="#1f2937" stroke-width="3" marker-end="url(#ar)"/>
+  <text x="550" y="566" text-anchor="middle" font-size="13" font-weight="700" fill="#111827">A3  Modbus TCP</text>
+  <text x="550" y="584" text-anchor="middle" font-size="12" fill="#374151">client: PLC</text>
+  <text x="550" y="622" text-anchor="middle" font-size="12" fill="#374151">server: physical-model:503</text>
+  <text x="550" y="640" text-anchor="middle" font-size="12" fill="#374151">read 40201–40202</text>
+  <text x="550" y="656" text-anchor="middle" font-size="12" fill="#374151">write 40301–40302</text>
+
+  <!-- Legend -->
+  <rect x="40" y="730" width="1020" height="100" rx="8" fill="#f9fafb" stroke="#d1d5db"/>
+  <line x1="70" y1="762" x2="150" y2="762" stroke="#1f2937" stroke-width="3" marker-end="url(#ar)"/>
+  <text x="165" y="767" font-size="14" fill="#111827"><tspan font-weight="700">Solid: control-relevant</tspan> – operator commands/setpoints and PLC sensor/actuator I/O</text>
+  <line x1="70" y1="798" x2="150" y2="798" stroke="#b45309" stroke-width="3" stroke-dasharray="9 6" marker-end="url(#arD)"/>
+  <text x="165" y="803" font-size="14" fill="#92400e"><tspan font-weight="700">Dashed: simulation-only</tspan> – outside-weather injection and read-back; nothing here reaches the PLC</text>
+</svg>

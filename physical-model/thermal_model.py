@@ -29,7 +29,7 @@ class ThermalModel:
         # HVAC properties
         self.fan_speed = 0  # 0-100%
         self.chiller_on = False
-        self.chiller_capacity = 20000  # W ( cooling capacity)
+        self.chiller_capacity = 5000  # W (cooling capacity; with the ST controller the room holds its setpoint band for outside temperatures up to ~30 C, see tests/)
         self.max_air_flow = 0.1  # m³/s at 100% fan speed
         
         # Humidity model parameters

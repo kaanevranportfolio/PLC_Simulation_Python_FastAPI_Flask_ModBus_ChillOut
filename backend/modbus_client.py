@@ -8,6 +8,16 @@ logging.basicConfig(level=logging.DEBUG)
 
 logger = logging.getLogger(__name__)
 
+def scale_x10(value: float) -> int:
+    """Encode a physical value as an unsigned x10 register value (rounded, not truncated)."""
+    return int(round(float(value) * 10))
+
+
+def to_signed16(raw: int) -> int:
+    """Interpret a 16-bit register value as two's complement (temperature registers are signed)."""
+    return raw - 0x10000 if raw >= 0x8000 else raw
+
+
 class ModbusClient:
     def __init__(self, host: str, port: int = 502):
         self.host = host
@@ -125,7 +135,7 @@ class ModbusClient:
             
             # Parse results
             status = {
-                "room_temperature": result.registers[0] / 10.0,
+                "room_temperature": to_signed16(result.registers[0]) / 10.0,
                 "room_humidity": result.registers[1] / 10.0,
                 "fan_speed": result.registers[2],
                 "chiller_status": bool(result.registers[3]),

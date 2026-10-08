@@ -19,8 +19,8 @@ class PLCSimulator:
         self.runtime = None
         self.modbus = None
         self.running = False
-   
-   
+        self.server_task = None
+
     async def load_program(self, st_file_path):
         """Load and parse ST program"""
         try:
@@ -57,42 +57,47 @@ class PLCSimulator:
     
 
     async def initialize_modbus(self):
-        """Initialize Modbus connections"""
+        """Start the Modbus server and make a first attempt to reach the physical model"""
         self.modbus = ModbusInterface(self.runtime)
-        # Don't await - just create the task
-        asyncio.create_task(self.modbus.start_server(port=502))
+        self.server_task = asyncio.create_task(self.modbus.start_server())
+        self.server_task.add_done_callback(self._on_server_task_done)
         # Give server a moment to start
         await asyncio.sleep(0.5)
-        # Now connect to physical model
-        await self.modbus.connect_to_physical_model('physical-model', 503)
+        # One connection attempt now; if the physical model is not up yet, the scan loop keeps retrying
+        await self.modbus.connect_to_physical_model()
         logger.info("Modbus interfaces initialized")
-    
+
+    @staticmethod
+    def _on_server_task_done(task):
+        if not task.cancelled() and task.exception() is not None:
+            logger.error(f"Modbus server stopped: {task.exception()}")
+
+    async def scan_once(self):
+        """One scan: read inputs -> run program -> write outputs"""
+        # 1. Inputs: plant sensors (Modbus client) and backend commands (own Modbus server)
+        await self.modbus.read_inputs()
+        self.modbus.read_commands()
+
+        # 2. Execute PLC logic
+        if self.runtime:
+            self.runtime.execute_cycle()
+            logger.debug(f"After PLC execution - FanSpeed: {self.runtime.memory.outputs.get('FanSpeed')}, "
+                         f"ChillerOn: {self.runtime.memory.outputs.get('ChillerOn')}")
+
+        # 3. Outputs: actuators on the plant, status registers for the backend
+        await self.modbus.write_outputs()
+        self.modbus.write_status()
 
     async def run_cycle(self):
-        """Main PLC scan cycle"""
+        """Main PLC scan loop at a 100 ms target cycle time"""
         cycle_time = 0.1  # 100ms scan cycle
-        
+
         while self.running:
             try:
                 cycle_start = asyncio.get_event_loop().time()
-                
-                # Read inputs from physical model via Modbus
-                await self.modbus.read_inputs()
-                
-                # Execute PLC logic
-                if self.runtime:
-                    # Log before execution
-                    logger.debug(f"Before PLC execution - SystemEnable: {self.runtime.memory.inputs.get('SystemEnable')}")
-                    self.runtime.execute_cycle()
-                    # Log after execution
-                    logger.debug(f"After PLC execution - FanSpeed: {self.runtime.memory.outputs.get('FanSpeed')}, ChillerOn: {self.runtime.memory.outputs.get('ChillerOn')}")
-                
-                # Write outputs to physical model via Modbus
-                await self.modbus.write_outputs()
-                
-                # Update Modbus server registers for backend
-                await self.modbus.update_server_registers()
-                
+
+                await self.scan_once()
+
                 # Maintain cycle time
                 cycle_end = asyncio.get_event_loop().time()
                 cycle_duration = cycle_end - cycle_start
@@ -100,7 +105,7 @@ class PLCSimulator:
                     await asyncio.sleep(cycle_time - cycle_duration)
                 else:
                     logger.warning(f"Cycle overrun: {cycle_duration:.3f}s")
-                    
+
             except Exception as e:
                 logger.error(f"Error in PLC cycle: {e}")
                 await asyncio.sleep(cycle_time)
@@ -126,6 +131,8 @@ class PLCSimulator:
         self.running = False
         if self.modbus:
             await self.modbus.stop()
+        if self.server_task:
+            self.server_task.cancel()
 
 async def main():
     plc = PLCSimulator()

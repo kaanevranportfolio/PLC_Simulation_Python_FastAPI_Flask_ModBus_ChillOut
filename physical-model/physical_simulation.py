@@ -14,6 +14,8 @@ import os
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+MODBUS_PORT = int(os.getenv("MODBUS_PORT", 503))
+
 # Flask app for REST API
 app = Flask(__name__)
 CORS(app)
@@ -55,10 +57,52 @@ def setup_modbus_server():
     
     logger.info("Modbus server datastore initialized")
 
+def encode_x10(value, signed=False):
+    """Scale by 10 and encode as a 16-bit register value (rounded; saturates at the register range)."""
+    raw = int(round(float(value) * 10))
+    if signed:
+        return max(-32768, min(32767, raw)) & 0xFFFF
+    return max(0, min(0xFFFF, raw))
+
+
+def update_once(context):
+    """One simulation step on a Modbus slave context.
+
+    Reads the actuator registers (written by the PLC), steps the thermal model by 1.0 s and
+    publishes the sensor registers. Temperature is a signed int16 x10 and is published as
+    computed (no clamping), so the PLC sees saturation or runaway instead of a hidden limit.
+    Returns (room_temp, room_humidity, fan_speed, chiller_state).
+    """
+    # Read actuator commands from Modbus registers (written by PLC)
+    fan_speed = context.getValues(3, REGISTER_MAP["actuator_fan"], 1)[0]
+    chiller_state = context.getValues(3, REGISTER_MAP["actuator_chiller"], 1)[0]
+
+    # Apply actuator commands to thermal model
+    thermal_model.set_fan_speed(fan_speed)
+    thermal_model.set_chiller_state(bool(chiller_state))
+
+    # Update thermal model with current weather
+    thermal_model.set_outside_conditions(
+        weather_conditions["temperature"],
+        weather_conditions["humidity"]
+    )
+
+    # Step the simulation
+    thermal_model.step(1.0)  # 1 second time step
+
+    room_temp, room_humidity = thermal_model.get_room_conditions()
+
+    # Write sensor data to Modbus registers (for PLC to read)
+    context.setValues(3, REGISTER_MAP["sensor_temp"], [encode_x10(room_temp, signed=True)])
+    context.setValues(3, REGISTER_MAP["sensor_humidity"], [encode_x10(room_humidity)])
+
+    return room_temp, room_humidity, fan_speed, chiller_state
+
+
 async def update_modbus_data():
-    """Update Modbus registers with sensor data and read actuator commands"""
+    """Simulation loop: one update_once() per second"""
     global running, modbus_context
-    
+
     # Initialize thermal model
     thermal_model.room_temperature = 22.0
     thermal_model.room_humidity = 50.0
@@ -66,53 +110,23 @@ async def update_modbus_data():
         weather_conditions["temperature"],
         weather_conditions["humidity"]
     )
-    
+
     while running:
         try:
             if not modbus_context:
                 await asyncio.sleep(1)
                 continue
-            
-            # Get the datastore
-            context = modbus_context[1]
-            
-            # Read actuator commands from Modbus registers (written by PLC)
-            fan_speed = context.getValues(3, REGISTER_MAP["actuator_fan"], 1)[0]
-            chiller_state = context.getValues(3, REGISTER_MAP["actuator_chiller"], 1)[0]
-            
-            # Apply actuator commands to thermal model
-            thermal_model.set_fan_speed(fan_speed)
-            thermal_model.set_chiller_state(bool(chiller_state))
-            
-            # Update thermal model with current weather
-            thermal_model.set_outside_conditions(
-                weather_conditions["temperature"],
-                weather_conditions["humidity"]
-            )
-            
-            # Step the simulation
-            thermal_model.step(1.0)  # 1 second time step
-            
-            # Get current room conditions
-            room_temp, room_humidity = thermal_model.get_room_conditions()
-            
-            # Ensure reasonable bounds
-            room_temp = max(10.0, min(50.0, room_temp))
-            room_humidity = max(20.0, min(90.0, room_humidity))
-            
-            # Write sensor data to Modbus registers (for PLC to read)
-            context.setValues(3, REGISTER_MAP["sensor_temp"], [int(room_temp * 10)])
-            context.setValues(3, REGISTER_MAP["sensor_humidity"], [int(room_humidity * 10)])
-            
-            # Log current state
+
+            room_temp, room_humidity, fan_speed, chiller_state = update_once(modbus_context[1])
+
             logger.info(f"Room: {room_temp:.1f}°C, {room_humidity:.0f}% | "
                        f"Fan: {fan_speed}% | Chiller: {'ON' if chiller_state else 'OFF'} | "
                        f"Outside: {weather_conditions['temperature']:.1f}°C, "
                        f"{weather_conditions['humidity']:.0f}%")
-            
+
         except Exception as e:
             logger.error(f"Error updating Modbus data: {e}", exc_info=True)
-        
+
         await asyncio.sleep(1)
 
 async def run_modbus_server():
@@ -135,10 +149,10 @@ async def run_modbus_server():
     server = await StartAsyncTcpServer(
         context=modbus_context,
         identity=identity,
-        address=("0.0.0.0", 503)
+        address=("0.0.0.0", MODBUS_PORT)
     )
     
-    logger.info("Modbus server started on port 503")
+    logger.info(f"Modbus server started on port {MODBUS_PORT}")
     
     # Keep running
     await asyncio.gather(update_task)
@@ -232,7 +246,7 @@ async def main():
     
     logger.info("Starting HVAC Physical Model Simulation")
     logger.info("REST API on port 8001")
-    logger.info("Modbus server on port 503")
+    logger.info(f"Modbus server on port {MODBUS_PORT}")
     
     # Run Modbus server
     try:

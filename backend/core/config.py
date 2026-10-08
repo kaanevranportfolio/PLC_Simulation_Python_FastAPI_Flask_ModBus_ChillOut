@@ -11,7 +11,7 @@ class Settings:
     
     # Default Values
     DEFAULT_SETPOINT_TEMP: float = 22.0
-    DEFAULT_SETPOINT_HUMIDITY: float = 50.0
+    DEFAULT_SETPOINT_HUMIDITY: float = 45.0
     DEFAULT_TEMP_DEADBAND: float = 1.0
     DEFAULT_HUMIDITY_DEADBAND: float = 5.0
     
