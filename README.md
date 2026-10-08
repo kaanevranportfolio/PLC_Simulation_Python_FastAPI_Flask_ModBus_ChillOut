@@ -6,7 +6,7 @@
 
 ## System Connections Diagram
 
-![System Connections](pngs/connections_resized.png)
+![System Connections](pngs/connections.png)
 
 Source: `pngs/connections.svg`. Solid arrows are control-relevant links, dashed arrows are simulation-only links; arrows point from the Modbus/HTTP client to the server.
 
@@ -62,7 +62,8 @@ plc/
     programs/
         hvac_control.st
 pngs/
-    connections_resized.png
+    connections.png
+    connections.svg
     screen.png
 ```
 
