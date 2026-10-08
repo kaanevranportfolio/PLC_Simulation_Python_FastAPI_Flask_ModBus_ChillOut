@@ -81,7 +81,8 @@ class PLCRuntime:
             'SetpointTemp': 22.0,
             'SetpointHumidity': 45.0,
             'TempDeadband': 1.0,
-            'HumidityDeadband': 5.0
+            'HumidityDeadband': 5.0,
+            'SensorFault': True  # no plant data yet; set by the Modbus interface every scan
         }
         
         # Outputs
@@ -250,6 +251,15 @@ class PLCRuntime:
     
     def _execute_default_logic(self):
         """Execute default HVAC control logic"""
+        if self.memory.inputs.get('SensorFault', True):
+            # Fail-safe: no trustworthy sensor data - everything off and alarm raised
+            self.memory.outputs['FanSpeed'] = 0
+            self.memory.outputs['ChillerOn'] = False
+            self.memory.outputs['SystemStatus'] = 0
+            self.memory.outputs['AlarmActive'] = True
+            return
+
+        self.memory.outputs['AlarmActive'] = False
         if not self.system_enabled:
             # System off - reset outputs
             self.memory.outputs['FanSpeed'] = 0
@@ -278,7 +288,7 @@ class PLCRuntime:
             
             # Fan speed based on error magnitude
             if cooling_required:
-                fan_speed = min(100, max(30, int(temp_error * 20)))
+                fan_speed = min(100, max(30, int(30 + temp_error * 20)))  # same law as hvac_control.st
             else:
                 fan_speed = 50  # Medium speed for dehumidification
             

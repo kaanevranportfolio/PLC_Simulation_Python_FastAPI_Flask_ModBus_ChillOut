@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from routes import system, status, weather, health
 from core.config import get_settings
 from core import dependencies
-from modbus_client import ModbusClient
+from modbus_client import ModbusClient, scale_x10
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -38,19 +38,19 @@ async def lifespan(app: FastAPI):
         try:
             await dependencies.modbus_client.write_register(
                 settings.REG_SETPOINT_TEMP, 
-                int(settings.DEFAULT_SETPOINT_TEMP * 10)
+                scale_x10(settings.DEFAULT_SETPOINT_TEMP)
             )
             await dependencies.modbus_client.write_register(
                 settings.REG_SETPOINT_HUMIDITY, 
-                int(settings.DEFAULT_SETPOINT_HUMIDITY * 10)
+                scale_x10(settings.DEFAULT_SETPOINT_HUMIDITY)
             )
             await dependencies.modbus_client.write_register(
                 settings.REG_TEMP_DEADBAND, 
-                int(settings.DEFAULT_TEMP_DEADBAND * 10)
+                scale_x10(settings.DEFAULT_TEMP_DEADBAND)
             )
             await dependencies.modbus_client.write_register(
                 settings.REG_HUMIDITY_DEADBAND, 
-                int(settings.DEFAULT_HUMIDITY_DEADBAND * 10)
+                scale_x10(settings.DEFAULT_HUMIDITY_DEADBAND)
             )
             logger.info("Default setpoints initialized")
         except Exception as e:

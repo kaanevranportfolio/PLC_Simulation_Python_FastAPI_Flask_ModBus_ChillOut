@@ -7,6 +7,7 @@ VAR_INPUT
     SetpointHumidity : REAL := 45.0;
     TempDeadband : REAL := 1.0;
     HumidityDeadband : REAL := 5.0;
+    SensorFault : BOOL := TRUE;  // set by the PLC I/O layer when plant sensor data is missing or stale
 END_VAR
 
 VAR_OUTPUT
@@ -28,7 +29,14 @@ VAR
 END_VAR
 
 // Main control logic
-IF SystemEnable THEN
+IF SensorFault THEN
+    // Fail-safe: no trustworthy sensor data - everything off, alarm raised
+    FanSpeed := 0;
+    ChillerOn := FALSE;
+    SystemStatus := 0;
+    AlarmActive := TRUE;
+
+ELSIF SystemEnable THEN
     // Calculate temperature and humidity errors
     TempError := RoomTemperature - SetpointTemp;
     HumidityError := RoomHumidity - SetpointHumidity;

@@ -3,6 +3,7 @@ from datetime import datetime
 import httpx
 import logging
 from models import SystemStatus
+from modbus_client import to_signed16
 from core.dependencies import get_modbus_client, get_system_state
 from core.config import get_settings
 
@@ -35,7 +36,7 @@ async def get_status(
             try:
                 registers = await modbus_client.read_holding_registers(settings.REG_ROOM_TEMP, 6)
                 if registers:
-                    status_data["room_temperature"] = registers[0] / 10.0
+                    status_data["room_temperature"] = to_signed16(registers[0]) / 10.0
                     status_data["room_humidity"] = registers[1] / 10.0
                     status_data["fan_speed"] = registers[2]
                     status_data["chiller_status"] = bool(registers[3])

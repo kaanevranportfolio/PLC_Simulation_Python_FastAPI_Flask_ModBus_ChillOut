@@ -1,0 +1,6 @@
+# Dependencies to run the test suite from the repository root: pytest
+-r ../plc/requirements.txt
+flask==3.0.0
+flask-cors==4.0.0
+numpy>=1.26
+pytest>=7.4

@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends
 from models import ControlCommand
+from modbus_client import scale_x10
 from core.dependencies import get_modbus_client, get_system_state
 from core.config import get_settings
 import logging
@@ -33,7 +34,7 @@ async def control_system(
             if command.value is None:
                 raise ValueError("Temperature value required")
             system_state["setpoint_temperature"] = command.value
-            await modbus_client.write_register(settings.REG_SETPOINT_TEMP, int(command.value * 10))
+            await modbus_client.write_register(settings.REG_SETPOINT_TEMP, scale_x10(command.value))
             logger.info("Temperature setpoint updated")
             return {"status": "success", "message": f"Temperature setpoint: {command.value}°C"}
             
@@ -41,7 +42,7 @@ async def control_system(
             if command.value is None:
                 raise ValueError("Humidity value required")
             system_state["setpoint_humidity"] = command.value
-            await modbus_client.write_register(settings.REG_SETPOINT_HUMIDITY, int(command.value * 10))
+            await modbus_client.write_register(settings.REG_SETPOINT_HUMIDITY, scale_x10(command.value))
             return {"status": "success", "message": f"Humidity setpoint: {command.value}%"}
             
     except Exception as e:
