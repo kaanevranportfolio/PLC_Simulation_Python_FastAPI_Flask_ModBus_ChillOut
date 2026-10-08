@@ -20,7 +20,7 @@ RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
 USER appuser
 
 # Expose port
-EXPOSE 5000
+EXPOSE 8001 503
 
 # Run the application
 CMD ["python", "physical_simulation.py"]

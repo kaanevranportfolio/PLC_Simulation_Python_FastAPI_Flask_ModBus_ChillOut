@@ -27,6 +27,9 @@ async def get_status(
             "outside_humidity": 60.0
         }
         
+        # Enable flag and setpoints: PLC values when readable, else last backend-cached values
+        plc_state = dict(system_state)
+
         # Try to read from PLC via Modbus
         if modbus_client and await modbus_client.test_connection():
             try:
@@ -36,6 +39,12 @@ async def get_status(
                     status_data["room_humidity"] = registers[1] / 10.0
                     status_data["fan_speed"] = registers[2]
                     status_data["chiller_status"] = bool(registers[3])
+                # Command registers as currently held by the PLC (40001-40005)
+                commands = await modbus_client.read_holding_registers(settings.REG_SYSTEM_ENABLE, 5)
+                if commands:
+                    plc_state["plc_running"] = bool(commands[0])
+                    plc_state["setpoint_temperature"] = commands[1] / 10.0
+                    plc_state["setpoint_humidity"] = commands[2] / 10.0
             except Exception as e:
                 logger.warning(f"Failed to read PLC status: {e}")
         
@@ -63,11 +72,11 @@ async def get_status(
             logger.warning(f"Physical model unavailable: {e}")
         
         final_status = SystemStatus(
-            plc_running=system_state["plc_running"],
+            plc_running=plc_state["plc_running"],
             timestamp=datetime.now(),
             **status_data,
-            setpoint_temperature=system_state["setpoint_temperature"],
-            setpoint_humidity=system_state["setpoint_humidity"]
+            setpoint_temperature=plc_state["setpoint_temperature"],
+            setpoint_humidity=plc_state["setpoint_humidity"]
         )
         #logger.info(f"Sending status to frontend: {final_status}")
         return final_status

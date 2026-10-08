@@ -8,7 +8,7 @@
 
 ![System Connections](pngs/connections_resized.png)
 
-> The Modbus role labels inside this image ("Modbus Slave" on the backend, "Master:502" on the PLC, "Master:503" on the physical model) do not match the code. The arrows and ports are right; for the real client/server roles use the [topology tables](#communication-topology) below. The image has not been regenerated.
+Source: `pngs/connections.svg`. Solid arrows are control-relevant links, dashed arrows are simulation-only links; arrows point from the Modbus/HTTP client to the server.
 
 # HVAC PLC Simulation
 
@@ -84,7 +84,7 @@ pngs/
 - **Purpose:** Operator UI. Shows status and lets the user start/stop the system, change setpoints, and change the simulated outside weather.
 - **Key Files:** `src/app.js`, `src/index.html`, `src/style.css`, `nginx.conf`
 - **Dockerized:** Yes (`frontend/Dockerfile`)
-- The browser calls the backend directly at the hard-coded `http://localhost:8000` (`API_URL` in `src/app.js`); Nginx only serves static files. The `REACT_APP_API_URL` variable in `docker-compose.yml` is not read by any code in `frontend/`.
+- The browser calls the backend directly at the hard-coded `http://localhost:8000` (`API_URL` in `src/app.js`); Nginx only serves static files.
 
 ### 3. Physical Model
 - **Framework:** Python (Flask + pymodbus + numpy)
@@ -159,7 +159,7 @@ All registers are 16-bit **holding registers** (function codes 3/6/16). Addresse
 | 40105 | SystemStatus | PLC → backend | uint16 | – | 0 = Off, 1 = Cooling, 2 = Idle |
 | 40106 | AlarmActive | PLC → backend | BOOL as uint16 | – | 0/1 |
 
-The PLC pre-loads the setpoint/deadband registers with 22.0 °C, 45.0 %, 1.0 °C, 5.0 %. At startup the backend then overwrites them with its own defaults: 22.0 °C, **50.0 %**, 1.0 °C, 5.0 % (`backend/core/config.py`).
+The PLC pre-loads the setpoint/deadband registers with 22.0 °C, 45.0 %, 1.0 °C, 5.0 %. At startup the backend then overwrites them with its own defaults: 22.0 °C, **50.0 %**, 1.0 °C, 5.0 % (`backend/core/config.py`). The 45 % vs 50 % mismatch is not deliberate (per the author) and is left unresolved.
 
 ### Physical-model server (`physical-model:503`) — PLC ↔ plant (link A3)
 
@@ -256,11 +256,11 @@ docker-compose down
 ## API Endpoints (Backend)
 - `POST /api/control`: body `{"command": "start"|"stop"|"set_temperature"|"set_humidity", "value": <number>}`.
 - `POST /api/weather`: body `{"temperature": …, "humidity": …}` — simulation-only (see above).
-- `GET /api/status`: room temperature/humidity, fan speed and chiller state (read from the PLC), outside conditions (from the physical model), and the setpoints and `plc_running` flag (held in backend memory, not read back from the PLC).
+- `GET /api/status`: room temperature/humidity, fan speed and chiller state (status registers 40101–40104), the enable flag (`plc_running`) and setpoints (command registers 40001–40003), all read from the PLC on each call; outside conditions come from the physical model. If the PLC read fails, the backend falls back to the last values it wrote itself.
 - `GET /api/health`: checks the PLC Modbus connection and the physical model's `/health`.
 - `GET /`: trivial status message.
 
-`SystemStatus` (40105) and `AlarmActive` (40106) are read by the backend's Modbus layer but are not returned by `GET /api/status`.
+`SystemStatus` (40105) and `AlarmActive` (40106) are not returned by `GET /api/status`.
 
 ## Frontend Features
 - Status polling every 2 s (room/outside temperature and humidity, fan speed, chiller status, setpoints).
@@ -275,10 +275,10 @@ docker-compose down
 - The ST dialect is a subset (see "ST features supported"); programs written for real IEC 61131-3 systems will generally not parse. There are no timers, PID, function blocks or user functions.
 - `hvac_control.st` is simple deadband control; there is no PID, hysteresis memory, anti-short-cycle protection, minimum on/off times, or fault handling beyond the fixed alarm limits.
 - The thermal model is a coarse single-zone model with invented parameters (taken from the code, not validated against any real room or equipment). Running `ThermalModel` directly with the chiller on at full capacity cools the unclamped internal temperature far below the 10 °C published to the PLC within a minute of simulated time, so the plant response is not realistic and the published sensor value saturates at its clamp.
-- The PLC makes a single connection attempt to the physical model at startup (`connect_to_physical_model`); there is no explicit reconnect loop in the PLC code. The PLC's physical-model host/port are hard-coded in `plc/main.py` (`physical-model`, 503) — the `PHYSICAL_MODEL_HOST`/`PHYSICAL_MODEL_PORT` variables in `docker-compose.yml` are not read.
+- The PLC makes a single connection attempt to the physical model at startup (`connect_to_physical_model`); there is no reconnect loop in the PLC code. When I started the PLC without a resolvable `physical-model` host, it kept logging "Not connected" every scan and the sensor values stayed at defaults. Its physical-model host/port are hard-coded in `plc/main.py` (`physical-model`, 503). The backend does retry its PLC connection at startup (20 attempts, 3 s apart).
 - Registers are 16-bit unsigned; scaling truncates (`int()`), and negative values are not handled in any register.
 - No automated tests exist in the repository, and none were run for this README.
-- **What was actually verified for this document:** the ST program parses with `st_parser.py`; `PLCRuntime` outputs for several input combinations (idle, cooling at 24 °C and 30 °C, dehumidification, over-temperature alarm, disabled) matched the description above; `ThermalModel` was stepped directly; and the physical model, PLC and backend were started natively (not in Docker — no Docker daemon was available, so `docker-compose up --build` has **not** been run) with `/api/health` reporting all three healthy and `/api/control` `start` followed by `/api/status` showing the PLC idle (fan 20 %, chiller off at ≈22.8 °C). The frontend, Nginx image, the weather endpoint through the full stack, and cooling mode through the full stack were not exercised.
+- **What was actually verified for this document:** the ST program parses with `st_parser.py`; `PLCRuntime` outputs for several input combinations (idle, cooling at 24 °C and 30 °C, dehumidification, over-temperature alarm, disabled) matched the description above; `ThermalModel` was stepped directly; and the physical model, PLC and backend were started natively (not in Docker — no Docker daemon was available, so `docker-compose up --build` has **not** been run). With them running: `/api/health` reported all three healthy; `start` then `/api/status` showed the PLC idle (fan 20 %, chiller off) at ≈22.8 °C; after posting outside weather of 35 °C via `/api/weather`, the room warmed and `/api/status` later showed cooling (chiller on, fan 52 %); after restarting only the backend, `/api/status` still reported `plc_running: true` (read from the PLC). The frontend and the Nginx image were not exercised.
 
 ## Development
 - Each component can be developed and tested independently.
