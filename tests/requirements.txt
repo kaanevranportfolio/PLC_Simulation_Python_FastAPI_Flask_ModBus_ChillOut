@@ -2,5 +2,8 @@
 -r ../plc/requirements.txt
 flask==3.0.0
 flask-cors==4.0.0
+fastapi>=0.104
+pydantic>=2.5
+httpx>=0.25
 numpy>=1.26
 pytest>=7.4

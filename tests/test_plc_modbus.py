@@ -153,8 +153,10 @@ def test_stale_sensor_data_fails_safe_and_reconnects(free_port):
             await rig.plant.start()                         # plant returns on the same port
             await rig.scans(6)
             assert not rig.plc.modbus.sensor_fault
-            assert rig.plant.actuators() == (70, 1)
+            assert rig.plant.actuators() == (20, 0)         # fail-safe stopped the chiller: minimum off time applies
             assert await rig.reg(ALARM) == 0
+            await rig.scans(100, pause=0)
+            assert rig.plant.actuators() == (70, 1)
     run(scenario())
 
 

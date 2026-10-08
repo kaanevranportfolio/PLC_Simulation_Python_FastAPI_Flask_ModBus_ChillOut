@@ -9,23 +9,30 @@ from st_parser import STParser
 from thermal_model import ThermalModel
 
 
-def closed_loop(outside_temp, hours=2.0, start=22.0):
-    """ST program + thermal model, one PLC decision per 1 s model step."""
+def closed_loop(outside_temp, hours=1.0, start=22.0):
+    """ST program + thermal model: 10 PLC scans (100 ms) per 1 s model step.
+    Returns (min temp, max temp, chiller start times in seconds, chiller stop times in seconds)."""
     rt = PLCRuntime(STParser().parse(open(ST_PROGRAM).read()))
     m = ThermalModel()
-    m.room_temperature, m.room_humidity = start, 50.0
-    m.set_outside_conditions(outside_temp, 50.0)
+    m.room_temperature, m.room_humidity = start, 45.0
+    m.set_outside_conditions(outside_temp, 45.0)
     lo = hi = start
-    for _ in range(int(hours * 3600)):
-        rt.memory.inputs.update(SystemEnable=True, SensorFault=False, RoomTemperature=float(m.room_temperature),
-                                RoomHumidity=float(m.room_humidity), SetpointTemp=22.0,
-                                SetpointHumidity=50.0, TempDeadband=1.0, HumidityDeadband=5.0)
-        rt.execute_cycle()
+    starts, stops, was_on = [], [], False
+    for second in range(int(hours * 3600)):
+        for _ in range(10):
+            rt.memory.inputs.update(SystemEnable=True, SensorFault=False, RoomTemperature=float(m.room_temperature),
+                                    RoomHumidity=float(m.room_humidity), SetpointTemp=22.0,
+                                    SetpointHumidity=45.0, TempDeadband=1.0, HumidityDeadband=5.0)
+            rt.execute_cycle()
+        on = bool(rt.memory.outputs["ChillerOn"])
+        if on != was_on:
+            (starts if on else stops).append(second)
+            was_on = on
         m.set_fan_speed(int(rt.memory.outputs["FanSpeed"]))
-        m.set_chiller_state(bool(rt.memory.outputs["ChillerOn"]))
+        m.set_chiller_state(on)
         m.step(1.0)
         lo, hi = min(lo, m.room_temperature), max(hi, m.room_temperature)
-    return lo, hi
+    return lo, hi, starts, stops
 
 
 def test_step_is_one_second_explicit_euler():
@@ -49,9 +56,17 @@ def test_chiller_is_not_absurdly_strong():
 
 @pytest.mark.parametrize("outside", [25.0, 28.0, 30.0])
 def test_closed_loop_holds_setpoint_band_when_outside_is_warmer(outside):
-    lo, hi = closed_loop(outside)
+    lo, hi, starts, stops = closed_loop(outside)
     assert lo > 20.0, (lo, hi)
     assert hi < 24.5, (lo, hi)
+
+
+def test_closed_loop_chiller_respects_minimum_times():
+    lo, hi, starts, stops = closed_loop(25.0)
+    assert starts and stops
+    events = sorted([(t, "start") for t in starts] + [(t, "stop") for t in stops])
+    for (t0, k0), (t1, k1) in zip(events, events[1:]):
+        assert t1 - t0 >= 10, (t0, k0, t1, k1)   # MinOnScans / MinOffScans = 100 scans = 10 s
 
 
 def test_update_once_publishes_signed_unclamped_temperature():
@@ -76,7 +91,7 @@ def test_update_once_applies_actuator_registers():
     assert sim.thermal_model.chiller_on is True
 
 
-def test_no_heating_room_drifts_to_outside_when_colder():
-    """The plant is cooling-only: below the setpoint nothing warms the room (documented limitation)."""
-    lo, hi = closed_loop(15.0, hours=1.0)
+def test_cooling_only_room_drifts_to_outside_when_colder():
+    """The plant is cooling-only by design (an air conditioner, not a heat pump): nothing warms the room."""
+    lo, hi, _, _ = closed_loop(15.0, hours=0.5)
     assert lo < 18.0

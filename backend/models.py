@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from typing import Optional
 from datetime import datetime
 
@@ -14,9 +14,25 @@ class SystemStatus(BaseModel):
     setpoint_temperature: float = Field(..., ge=15, le=30)
     setpoint_humidity: float = Field(..., ge=30, le=70)
 
+# Setpoint ranges (same as the frontend sliders and SystemStatus above)
+SETPOINT_TEMP_RANGE = (15.0, 30.0)
+SETPOINT_HUMIDITY_RANGE = (30.0, 70.0)
+
+
 class ControlCommand(BaseModel):
     command: str = Field(..., pattern="^(start|stop|set_temperature|set_humidity)$")  # Changed from regex to pattern
     value: Optional[float] = None
+
+    @model_validator(mode="after")
+    def check_setpoint_range(self):
+        ranges = {"set_temperature": SETPOINT_TEMP_RANGE, "set_humidity": SETPOINT_HUMIDITY_RANGE}
+        if self.command in ranges:
+            low, high = ranges[self.command]
+            if self.value is None:
+                raise ValueError(f"{self.command} requires a value")
+            if not low <= self.value <= high:
+                raise ValueError(f"{self.command} value must be between {low} and {high}")
+        return self
 
 class WeatherConditions(BaseModel):
     temperature: float = Field(..., ge=-20, le=50)

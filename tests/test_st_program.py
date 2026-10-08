@@ -56,9 +56,75 @@ def test_dehumidification(runtime):
     assert (out["FanSpeed"], out["ChillerOn"], out["SystemStatus"]) == (50, 1, 1)
 
 
-def test_no_state_chiller_follows_error(runtime):
+def scans(rt, n, **inputs):
+    out = None
+    for _ in range(n):
+        out = run(rt, **inputs)
+    return out
+
+
+MIN_SCANS = 100  # MinOnScans / MinOffScans in hvac_control.st and PLCRuntime.MIN_*_SCANS
+
+
+def test_hysteresis_keeps_cooling_until_below_lower_threshold(runtime):
     assert run(runtime, RoomTemperature=24.0)["ChillerOn"] == 1
-    assert run(runtime, RoomTemperature=22.9)["ChillerOn"] == 0  # deadband threshold only, no latch
+    # inside the band (error between -1 and +1) the previous demand is kept, even after the minimum on time
+    assert scans(runtime, MIN_SCANS + 20, RoomTemperature=22.5)["ChillerOn"] == 1
+    assert scans(runtime, 1, RoomTemperature=21.5)["ChillerOn"] == 1
+    # below setpoint - deadband the demand ends
+    assert run(runtime, RoomTemperature=20.9)["ChillerOn"] == 0
+
+
+def test_minimum_on_time(runtime):
+    assert run(runtime, RoomTemperature=24.0)["ChillerOn"] == 1       # starts, timer = 0
+    assert scans(runtime, MIN_SCANS - 1, RoomTemperature=20.0)["ChillerOn"] == 1
+    out = run(runtime, RoomTemperature=20.0)
+    assert out["ChillerOn"] == 0 and out["SystemStatus"] == 2
+    assert out["FanSpeed"] == 20
+
+
+def test_minimum_off_time(runtime):
+    run(runtime, RoomTemperature=24.0)
+    scans(runtime, MIN_SCANS, RoomTemperature=20.0)                    # chiller stops
+    assert scans(runtime, MIN_SCANS - 1, RoomTemperature=25.0)["ChillerOn"] == 0   # demand again, too early
+    assert run(runtime, RoomTemperature=25.0)["ChillerOn"] == 1
+
+
+def test_disable_stops_immediately_and_restart_respects_minimum_off(runtime):
+    run(runtime, RoomTemperature=24.0)
+    out = run(runtime, SystemEnable=False, RoomTemperature=24.0)
+    assert out["ChillerOn"] == 0 and out["FanSpeed"] == 0                 # operator stop ignores minimum on time
+    assert scans(runtime, MIN_SCANS - 1, RoomTemperature=24.0)["ChillerOn"] == 0
+    assert run(runtime, RoomTemperature=24.0)["ChillerOn"] == 1
+
+
+def test_dehumidification_hysteresis(runtime):
+    assert run(runtime, RoomHumidity=60.0)["ChillerOn"] == 1
+    assert scans(runtime, MIN_SCANS + 5, RoomHumidity=42.0)["ChillerOn"] == 1   # inside band
+    out = run(runtime, RoomHumidity=39.0)                                       # below setpoint - deadband
+    assert out["ChillerOn"] == 0
+
+
+def test_python_fallback_matches_st_program():
+    """Same random input sequence into both implementations: identical outputs every scan."""
+    import random
+    for seed in range(6):
+        rnd = random.Random(seed)
+        st = PLCRuntime(STParser().parse(open(ST_PROGRAM).read()))
+        py = PLCRuntime(None)
+        inputs = dict(SystemEnable=True, SensorFault=False, RoomTemperature=22.0, RoomHumidity=45.0,
+                      SetpointTemp=22.0, SetpointHumidity=45.0, TempDeadband=1.0, HumidityDeadband=5.0)
+        for scan in range(3000):
+            if scan % 40 == 0:
+                inputs["RoomTemperature"] = rnd.choice([8.0, 20.5, 21.5, 22.0, 22.8, 23.5, 25.0, 31.0, 36.0])
+                inputs["RoomHumidity"] = rnd.choice([18.0, 38.0, 42.0, 46.0, 52.0, 58.0, 85.0])
+            if scan % 150 == 0:
+                inputs["SystemEnable"] = rnd.random() > 0.2
+                inputs["SensorFault"] = rnd.random() < 0.15
+            a, b = run(st, **inputs), run(py, **inputs)
+            assert a["ChillerOn"] == b["ChillerOn"], (seed, scan, a, b)
+            assert a["SystemStatus"] == b["SystemStatus"] and a["AlarmActive"] == b["AlarmActive"], (seed, scan, a, b)
+            assert abs(a["FanSpeed"] - b["FanSpeed"]) <= 1, (seed, scan, a, b)
 
 
 def test_st_program_alarm_limits():

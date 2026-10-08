@@ -45,6 +45,8 @@ async def control_system(
             await modbus_client.write_register(settings.REG_SETPOINT_HUMIDITY, scale_x10(command.value))
             return {"status": "success", "message": f"Humidity setpoint: {command.value}%"}
             
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error in control command: {e}")
         raise HTTPException(status_code=400, detail=str(e))

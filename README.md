@@ -159,7 +159,7 @@ All registers are 16-bit **holding registers** (function codes 3/6/16). Addresse
 | 40105 | SystemStatus | PLC → backend | uint16 | – | 0 = Off, 1 = Cooling, 2 = Idle |
 | 40106 | AlarmActive | PLC → backend | BOOL as uint16 | – | 0/1. Also 1 while there is a sensor fault (see below) |
 
-The PLC pre-loads the setpoint/deadband registers with 22.0 °C, 45.0 %, 1.0 °C, 5.0 %. At startup the backend then overwrites them with its own defaults: 22.0 °C, **50.0 %**, 1.0 °C, 5.0 % (`backend/core/config.py`). The 45 % vs 50 % mismatch is not deliberate (per the author) and is left unresolved.
+The PLC pre-loads the setpoint/deadband registers with 22.0 °C, 45.0 %, 1.0 °C, 5.0 %. At startup the backend writes its own defaults (`backend/core/config.py`): the same values, 22.0 °C, 45.0 %, 1.0 °C, 5.0 %. The frontend's humidity slider also starts at 45 %.
 
 ### Physical-model server (`physical-model:503`) — PLC ↔ plant (link A3)
 
@@ -199,21 +199,21 @@ The physical model is not synchronised to the PLC scan: its loop runs about once
 
 ### What `hvac_control.st` does
 
-`plc/programs/hvac_control.st` (program `HVAC_Control`) is **deadband threshold control**, not hysteresis with memory, not PID, and not a state machine:
+`plc/programs/hvac_control.st` (program `HVAC_Control`) is **on/off hysteresis control with minimum on/off times** for a cooling-only chiller plus a variable fan. It is not PID. The "state" it keeps is a few internal variables (`CoolingRequired`, `DehumidRequired`, `ChillerTimer`) and the outputs themselves, which persist from scan to scan.
 
-- If `SensorFault` is true: fail-safe (`FanSpeed := 0`, `ChillerOn := FALSE`, `SystemStatus := 0`, `AlarmActive := TRUE`).
-- Else if `SystemEnable` is false: `FanSpeed := 0`, `ChillerOn := FALSE`, `SystemStatus := 0`, `AlarmActive := FALSE`.
+- Every scan first increments `ChillerTimer`, the number of scans since the chiller last changed state (capped at 100 000).
+- If `SensorFault` is true: fail-safe (`FanSpeed := 0`, `ChillerOn := FALSE`, `SystemStatus := 0`, `AlarmActive := TRUE`, demands cleared).
+- Else if `SystemEnable` is false: `FanSpeed := 0`, `ChillerOn := FALSE`, `SystemStatus := 0`, `AlarmActive := FALSE`, demands cleared. Both of these stop the chiller immediately, ignoring the minimum on time.
 - Otherwise:
   - `TempError := RoomTemperature − SetpointTemp`, `HumidityError := RoomHumidity − SetpointHumidity`.
-  - `CoolingRequired` = `TempError > TempDeadband`. `DehumidRequired` = `HumidityError > HumidityDeadband` and not cooling.
-  - **Cooling:** `ChillerOn := TRUE`, `SystemStatus := 1`, `FanSpeed := 30 + 20·TempError`, limited to 30–100.
-  - **Dehumidification:** `ChillerOn := TRUE`, `SystemStatus := 1`, `FanSpeed := 50`.
-  - **Otherwise (idle):** `ChillerOn := FALSE`, `SystemStatus := 2`, `FanSpeed := 20`.
+  - **Hysteresis:** `CoolingRequired` becomes TRUE when `TempError > TempDeadband` and FALSE when `TempError < −TempDeadband`; in between it keeps its previous value. `DehumidRequired` does the same with `HumidityError` and `HumidityDeadband`. With the defaults the chiller demand starts above setpoint + 1 °C and ends below setpoint − 1 °C (humidity: ±5 %).
+  - **Minimum times:** the chiller starts only if a demand exists and `ChillerTimer >= MinOffScans`, and stops only if no demand exists and `ChillerTimer >= MinOnScans`; each change resets `ChillerTimer` to 0. Both limits are 100 scans = 10 s at the 100 ms scan time. The values are counted in scans, so they assume that scan time. They are short on purpose: the simulated room is only an air volume and reacts within seconds. At power-up `ChillerTimer` starts at 1000, so the first start is not delayed.
+  - **Outputs:** if the chiller is on, `SystemStatus := 1`; the fan is `30 + 20·TempError` limited to 30–100 while `CoolingRequired`, otherwise 50 (dehumidification or holding for the minimum on time). If the chiller is off, `SystemStatus := 2` and `FanSpeed := 20` (circulation).
   - **Alarm:** `AlarmActive := TRUE` if `RoomTemperature > 35` or `< 10`, or `RoomHumidity > 80` or `< 20`; otherwise FALSE. (Evaluated only while enabled; limits are hard-coded.)
 
-The decision is recomputed from scratch every scan from the current inputs, so the chiller turns off again as soon as `TempError` is no longer above the deadband; there is no separate lower switch-off threshold. `TempLow` is computed but never used. The program has no integral or derivative terms and no stored state beyond the output variables themselves.
+Cooling-only is intended (an air conditioner, not a heat pump): there is no heating output, so `TempLow` only ends a cooling demand.
 
-If the ST file is missing or fails to parse, `PLCRuntime` falls back to `_execute_default_logic()` in `plc_runtime.py`, a hard-coded Python version of the same decisions (sensor-fault fail-safe, cooling fan `30 + 20·TempError` limited to 30–100, dehumidification 50, idle 20). It has no temperature/humidity alarm limits: `AlarmActive` is only raised for a sensor fault.
+If the ST file is missing or fails to parse, `PLCRuntime` falls back to `_execute_default_logic()` in `plc_runtime.py`, a Python re-implementation of the same logic (fail-safe, hysteresis, minimum times, fan law, alarm limits). `tests/test_st_program.py` feeds the same random input sequences to both and requires identical outputs every scan (fan speed within 1 %).
 
 ### ST features supported by `st_parser.py`
 
@@ -239,9 +239,9 @@ Each step computes, for temperature and humidity:
 - **Chiller (when on):** a fixed `−5 000 W · dt / thermal mass` temperature change and `−0.02 %/s` humidity — the chiller is on/off at full capacity; the fan only affects outside-air exchange.
 - **Internal gains:** constant +100 W and +0.001 %/s humidity.
 - Humidity is clamped to 20–90 % inside the model. Temperature is not clamped anywhere: `physical_simulation.py` publishes the computed value to 40201 as a signed int16 ×10.
-- There is **no heating**. Below the setpoint nothing warms the room, so with outside temperature below the setpoint the room drifts toward the outside temperature (covered by a test).
+- There is **no heating**, by design (this models an air conditioner, not a heat pump). With the outside temperature below the setpoint the room drifts toward the outside temperature (covered by a test).
 
-The chiller capacity (5 kW, previously 20 kW) was chosen so that, with `hvac_control.st` in the loop, the room stays within roughly 20–24.5 °C for outside temperatures of 25, 28 and 30 °C over two simulated hours (see `tests/test_thermal_and_plant.py`). It is a tuning value, not derived from real equipment. Measured with the same closed loop over one simulated hour: peak room temperature 23.1 °C at 30 °C outside, 24.9 °C at 34 °C, 27.1 °C at 36 °C and 31.1 °C at 40 °C — the chiller can no longer hold the setpoint band above roughly 34 °C outside.
+The chiller capacity (5 kW, previously 20 kW) was chosen so that, with `hvac_control.st` in the loop (10 scans per 1 s model step), the room stays between about 20.9 and 23.1 °C for 25–30 °C outside. It is a tuning value, not derived from real equipment. Measured over one simulated hour: peak room temperature 24.9 °C at 34 °C outside, 27.1 °C at 36 °C and 31.1 °C at 40 °C, so the chiller can no longer hold the setpoint band above roughly 34 °C outside. When the chiller runs continuously (about 32 °C outside) the model's constant dehumidification pushes humidity down to about 21 %, close to the floor of 20 % and to the 20 % alarm limit.
 
 Initial state set by `physical_simulation.py`: room 22.0 °C / 50 %, outside 25 °C / 60 % (until changed via the weather API). Temperature and humidity are independent quantities (no psychrometric coupling). `get_energy_consumption()` exists but nothing calls it.
 
@@ -269,7 +269,7 @@ python -m venv .venv && . .venv/bin/activate
 pip install -r tests/requirements.txt
 python -m pytest tests
 ```
-The tests start real Modbus TCP servers/clients on localhost ports chosen at runtime. They cover register scaling and signed temperature, the ST program (and the Python fallback) for every branch, a closed loop of ST program + thermal model, the PLC scan (sensors → program → actuators → status registers, backend commands taking effect in the same scan), and sensor-fault / reconnect behaviour when the plant disappears and returns.
+The tests start real Modbus TCP servers/clients on localhost ports chosen at runtime. They cover register scaling and signed temperature, the ST program and its Python fallback (every branch, hysteresis, minimum on/off times, and a side-by-side equivalence run), a closed loop of ST program + thermal model, the PLC scan (sensors → program → actuators → status registers, backend commands taking effect in the same scan), sensor-fault / reconnect behaviour when the plant disappears and returns, and the backend HTTP routes (setpoint validation, signed temperature, values read from the PLC) against a fake Modbus client.
 
 ### Stopping the Project
 ```bash
@@ -277,7 +277,7 @@ docker-compose down
 ```
 
 ## API Endpoints (Backend)
-- `POST /api/control`: body `{"command": "start"|"stop"|"set_temperature"|"set_humidity", "value": <number>}`.
+- `POST /api/control`: body `{"command": "start"|"stop"|"set_temperature"|"set_humidity", "value": <number>}`. Setpoints are validated: temperature 15–30 °C and humidity 30–70 % (the frontend slider ranges), otherwise HTTP 422 and nothing is written to the PLC. HTTP 503 is returned when the PLC is unreachable.
 - `POST /api/weather`: body `{"temperature": …, "humidity": …}` — simulation-only (see above).
 - `GET /api/status`: room temperature/humidity, fan speed and chiller state (status registers 40101–40104), the enable flag (`plc_running`) and setpoints (command registers 40001–40003), all read from the PLC on each call; outside conditions come from the physical model. If the PLC read fails, the backend falls back to the last values it wrote itself.
 - `GET /api/health`: checks the PLC Modbus connection and the physical model's `/health`.
@@ -296,12 +296,12 @@ docker-compose down
 - **Software simulation only.** There is no vendor PLC hardware and no IEC 61131-3 toolchain (no PLCopen/TIA/CODESYS-style compiler or runtime). The "PLC" is a Python interpreter for a small ST subset (see above), run on an asyncio loop. Scan timing is best-effort 100 ms, not deterministic or real-time. Behaviour has not been compared with any real PLC.
 - Modbus here is plain Modbus TCP via pymodbus, between containers on one Docker network: no authentication, encryption, or access control; the backend API has none either (CORS allows all origins).
 - The ST dialect is a subset (see "ST features supported"); programs written for real IEC 61131-3 systems will generally not parse. There are no timers, PID, function blocks or user functions.
-- `hvac_control.st` is simple deadband control; there is no PID, hysteresis memory, anti-short-cycle protection, minimum on/off times, or fault handling beyond the fixed alarm limits.
-- The thermal model is a coarse single-zone model with invented parameters (not validated against any real room or equipment). It has no heating and no thermal mass besides the air, and the chiller is on/off at a fixed 5 kW.
+- `hvac_control.st` is on/off hysteresis control with minimum on/off times, not PID; the minimum times are scaled to the simulated room (10 s) and are not realistic compressor protection. The alarm limits are hard-coded and only raise `AlarmActive`; nothing acts on the alarm except the fail-safe for sensor faults.
+- The thermal model is a coarse single-zone model with invented parameters (not validated against any real room or equipment). It has no thermal mass besides the air, so it reacts within seconds, and the chiller is on/off at a fixed 5 kW.
 - The PLC reconnects to the physical model and goes to a fail-safe state on missing sensor data (see above), but it cannot detect a sensor value that is read successfully yet is frozen. The backend retries its PLC connection at startup (20 attempts, 3 s apart).
-- Registers are 16-bit. Scaled values are rounded to nearest and saturate at the register range; only the two temperature registers (40101, 40201) are signed. Setpoints and deadbands are unsigned, and the backend does not range-check the setpoint it receives from the API.
+- Registers are 16-bit. Scaled values are rounded to nearest and saturate at the register range; only the two temperature registers (40101, 40201) are signed. Setpoints and deadbands are unsigned. The backend range-checks setpoints sent through `/api/control`; deadbands are only ever written with the backend's fixed defaults.
 - Tests exist for the PLC/Modbus side, the ST program and the thermal model (see "Running the tests"). There are no tests for the frontend, the backend HTTP routes, or the Docker images.
-- **What was actually verified:** `python -m pytest tests` (34 tests, Python 3.13, pymodbus 3.5.4) passes; I also confirmed that deliberately reverting the scan order or disabling reconnect makes the corresponding tests fail. Separately, the physical model, PLC and backend were started natively (not in Docker — no Docker daemon was available, so `docker-compose up --build` has **not** been run) with the PLC started *first*: the PLC logged the link down and a sensor fault, then connected by itself once the physical model came up; `start` plus outside weather of 32 °C via `/api/weather` gave cooling (chiller on, fan 70 %) at 24.0 °C; killing the physical model produced the sensor fault and `fan_speed` 0, and restarting it recovered without restarting the PLC; restarting only the backend kept `plc_running: true` (read from the PLC). The frontend and the Nginx image were not exercised.
+- **What was actually verified:** `python -m pytest tests` (44 tests, Python 3.13, pymodbus 3.5.4, FastAPI/pydantic latest at the time) passes. Deliberately reverting the scan order, disabling reconnect, or removing the 503 pass-through makes the corresponding tests fail. The physical model, PLC and backend were also started natively (not in Docker — no Docker daemon was available, so `docker-compose up --build` has **not** been run), with the PLC started *first*: it logged the link down and a sensor fault, connected by itself when the physical model came up, then with 30 °C outside the chiller ran until the room fell to 21.0 °C (setpoint − deadband) and switched off, after which the room warmed again; a setpoint of 35 °C was rejected with HTTP 422. An earlier run of an earlier revision showed the sensor fault (fan 0) when the physical model was killed and recovery when it was restarted. The frontend and the Nginx image were not exercised; the changed slider default in `index.html` has not been viewed in a browser.
 
 ## Development
 - Each component can be developed and tested independently.
